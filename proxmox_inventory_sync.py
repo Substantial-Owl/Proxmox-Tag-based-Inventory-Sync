@@ -4,39 +4,30 @@ import requests
 from requests.auth import HTTPBasicAuth
 
 
-def get_proxmox_nodes(proxmox_api_url, proxmox_username, proxmox_password):
-    # Authenticate with Proxmox API
-    response = requests.post(
-        f"{proxmox_api_url}/access/ticket",
-        auth=HTTPBasicAuth(proxmox_username, proxmox_password),
-        verify=False
-    )
-    ticket = response.json().get("data").get("ticket")
-    csrf_token = response.json().get("data").get("CSRFPreventionToken")
-
+def get_proxmox_nodes(proxmox_api_url, proxmox_token):
     # Get list of Proxmox nodes with tags
     headers = {
-        "CSRFPreventionToken": csrf_token,
-        "Cookie": f"PVEAuthCookie={ticket}",
+        "Authorization": f"Bearer {proxmox_token}",
     }
     response = requests.get(
         f"{proxmox_api_url}/nodes",
         headers=headers,
         verify=False
     )
+    response.raise_for_status()
     nodes = response.json().get("data")
 
     return nodes
 
 
-def generate_inventory(proxmox_api_url, proxmox_username, proxmox_password):
+def generate_inventory(proxmox_api_url, proxmox_token):
     inventory = {
         "_meta": {
             "hostvars": {}
         }
     }
 
-    nodes = get_proxmox_nodes(proxmox_api_url, proxmox_username, proxmox_password)
+    nodes = get_proxmox_nodes(proxmox_api_url, proxmox_token)
 
     for node in nodes:
         hostname = node.get("node")
@@ -60,11 +51,10 @@ def main():
     module_args = dict(
         inventory_id=dict(type='int', required=True),
         proxmox_api_url=dict(type='str', required=True),
-        proxmox_username=dict(type='str', required=True),
-        proxmox_password=dict(type='str', required=True),
+        proxmox_token=dict(type='str', required=True, no_log=True),
         awx_api_url=dict(type='str', required=True),
         awx_username=dict(type='str', required=True),
-        awx_password=dict(type='str', required=True),
+        awx_password=dict(type='str', required=True, no_log=True),
     )
 
     module = AnsibleModule(
@@ -74,15 +64,14 @@ def main():
 
     inventory_id = module.params['inventory_id']
     proxmox_api_url = module.params['proxmox_api_url']
-    proxmox_username = module.params['proxmox_username']
-    proxmox_password = module.params['proxmox_password']
+    proxmox_token = module.params['proxmox_token']
     awx_api_url = module.params['awx_api_url']
     awx_username = module.params['awx_username']
     awx_password = module.params['awx_password']
 
     # Update AWX inventory
     try:
-        inventory = generate_inventory(proxmox_api_url, proxmox_username, proxmox_password)
+        inventory = generate_inventory(proxmox_api_url, proxmox_token)
         inventory_json = module.jsonify(inventory)
 
         headers = {
@@ -101,7 +90,7 @@ def main():
         )
         response.raise_for_status()
         module.exit_json(changed=True, msg="Inventory updated successfully!")
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
         module.fail_json(msg=f"Failed to update inventory: {str(e)}")
 
 
