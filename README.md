@@ -1,3 +1,5 @@
+This code and documentation is 99% AI GENERATED !!
+
 ## Ansible Module: Proxmox Tag-based Inventory Sync
 
 This Ansible module allows you to synchronize the inventory in Ansible Tower/AWX with a Proxmox cluster based on tags associated with Proxmox nodes. It retrieves the tags from Proxmox and dynamically generates inventory groups in Ansible Tower/AWX based on those tags. The module incorporates security best practices to ensure secure communication and handling of sensitive data.
